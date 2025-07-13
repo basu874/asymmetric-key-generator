@@ -1,0 +1,55 @@
+from binance.client import Client
+import pandas as pd
+import time
+
+# ✅ Testnet API Key & Secret বসান
+api_key = 'YOUR_TESTNET_API_KEY'
+api_secret = 'YOUR_TESTNET_SECRET_KEY'
+
+# ✅ Use Binance Testnet endpoint
+client = Client(api_key, api_secret, testnet=True)
+
+client.API_URL = 'https://testnet.binance.vision/api'  # Force to use testnet
+
+symbol = "BTCUSDT"
+interval = "1h"
+lookback = 20
+quantity = 0.001
+
+def get_klines():
+    klines = client.get_klines(symbol=symbol, interval=interval, limit=lookback+1)
+    df = pd.DataFrame(klines, columns=[
+        'timestamp', 'open', 'high', 'low', 'close', 'volume',
+        'close_time', 'quote_asset_volume', 'number_of_trades',
+        'taker_buy_base', 'taker_buy_quote', 'ignore'])
+    df['high'] = df['high'].astype(float)
+    df['low'] = df['low'].astype(float)
+    df['close'] = df['close'].astype(float)
+    return df
+
+def breakout_trade():
+    df = get_klines()
+    high_break = df['high'][:-1].max()
+    low_break = df['low'][:-1].min()
+    last_close = df['close'].iloc[-1]
+
+    position = client.get_open_orders(symbol=symbol)
+    if position:
+        print("Already in a position.")
+        return
+
+    if last_close > high_break:
+        print("Breakout UP! Placing Buy Order.")
+        order = client.order_market_buy(symbol=symbol, quantity=quantity)
+        print(order)
+    elif last_close < low_break:
+        print("Breakout DOWN! Placing Sell Order.")
+        order = client.order_market_sell(symbol=symbol, quantity=quantity)
+        print(order)
+    else:
+        print("No breakout. Waiting...")
+
+# ⏱️ Run every hour (you can reduce for testing)
+while True:
+    breakout_trade()
+    time.sleep(3600)
